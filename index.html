@@ -63,7 +63,7 @@ body{
 .text-btn.primary{ border-color:var(--accent); color:var(--accent); font-weight:600; }
 .text-btn:hover{ border-color:var(--accent); color:var(--accent); }
 
-.tree{ flex:1; min-height:0; overflow-y:auto; padding:8px; padding-bottom:96px; }
+.tree{ flex:1; min-height:0; overflow-y:auto; padding:8px; padding-bottom:150px; }
 .node-row.special{ font-size:13px; font-weight:600; color:var(--ink-dim); }
 .node-row.special:hover, .node-row.special.active{ color:var(--ink); }
 .row-check{
@@ -101,10 +101,13 @@ body{
 .badge-GET{ background:var(--get); } .badge-POST{ background:var(--post); } .badge-PUT{ background:var(--put); }
 .badge-PATCH{ background:var(--patch); } .badge-DELETE{ background:var(--delete); }
 
-.sidebar-footer{
+.sidebar-footer-wrap{
   position:fixed; left:0; bottom:0; width:310px; box-sizing:border-box;
-  border-top:1px solid var(--line); padding:10px 12px; display:flex; flex-wrap:wrap; gap:6px;
-  background:var(--bg); box-shadow:0 -6px 16px rgba(0,0,0,0.12); z-index:40;
+  display:flex; flex-direction:column; z-index:40; box-shadow:0 -6px 16px rgba(0,0,0,0.12);
+}
+.sidebar-footer{
+  box-sizing:border-box; border-top:1px solid var(--line); padding:10px 12px;
+  display:flex; flex-wrap:wrap; gap:6px; background:var(--bg);
 }
 .ghost-btn{ flex:1; min-width:80px; padding:7px 8px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--ink-dim); font-size:11.5px; cursor:pointer; }
 .ghost-btn:hover{ color:var(--ink); border-color:var(--accent); }
@@ -192,6 +195,18 @@ textarea.resp-body{ min-height:90px; }
 .notes-area:empty::before{ content:attr(data-placeholder); color:var(--ink-dim); }
 .notes-area ul, .notes-area ol{ margin:4px 0; padding-left:22px; }
 .move-select{ padding:6px 8px; border-radius:6px; border:1px solid var(--line); background:var(--bg-elev); color:var(--ink); font-size:12.3px; }
+.link-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.link-chip{
+  display:inline-flex; align-items:center; gap:5px; padding:3px 4px 3px 8px; border-radius:999px;
+  background:var(--mono-bg); border:1px solid var(--line); font-size:11.5px; color:var(--ink-dim);
+}
+.link-chip button{
+  border:none; background:transparent; color:var(--ink-dim); cursor:pointer; font-size:13px;
+  width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; padding:0;
+}
+.link-chip button:hover{ background:var(--delete); color:#fff; }
+.link-row{ display:flex; gap:6px; margin-top:10px; }
+.link-row .link-select{ flex:1; }
 
 .topbar{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding-bottom:6px; }
 .topbar-left{ display:flex; align-items:center; gap:8px; }
@@ -230,24 +245,26 @@ textarea.resp-body{ min-height:90px; }
       </div>
     </div>
     <div class="tree" id="tree"></div>
-    <div class="sidebar-footer" id="normalFooter">
-      <div class="share-wrap">
-        <button class="ghost-btn primary" id="shareBtn" style="width:100%;">Compartir vista previa ▾</button>
-        <div class="share-menu" id="shareMenu" hidden></div>
-      </div>
-      <button class="ghost-btn" id="exportBtn">JSON</button>
-      <button class="ghost-btn" id="exportMdBtn">Markdown</button>
-      <button class="ghost-btn" id="importBtn">Importar</button>
-      <input type="file" id="importFile" accept="application/json" />
-    </div>
-    <div class="sidebar-footer" id="bulkBar" hidden>
-      <div style="width:100%; display:flex; flex-direction:column; gap:6px;">
-        <div class="hint" id="bulkCount" style="margin:0;">0 seleccionados</div>
-        <div style="display:flex; gap:6px;">
-          <select class="move-select" id="bulkProjectSelect" style="flex:1;"></select>
-          <button class="small-btn" id="bulkMoveBtn">Mover</button>
-          <button class="small-btn danger" id="bulkCancelBtn">Cancelar</button>
+    <div class="sidebar-footer-wrap">
+      <div class="sidebar-footer" id="bulkBar" hidden>
+        <div style="width:100%; display:flex; flex-direction:column; gap:6px;">
+          <div class="hint" id="bulkCount" style="margin:0;">0 seleccionados</div>
+          <div style="display:flex; gap:6px;">
+            <select class="move-select" id="bulkProjectSelect" style="flex:1;"></select>
+            <button class="small-btn" id="bulkMoveBtn">Mover</button>
+            <button class="small-btn danger" id="bulkCancelBtn">Cancelar</button>
+          </div>
         </div>
+      </div>
+      <div class="sidebar-footer" id="normalFooter">
+        <div class="share-wrap">
+          <button class="ghost-btn primary" id="shareBtn" style="width:100%;">Compartir vista previa ▾</button>
+          <div class="share-menu" id="shareMenu" hidden></div>
+        </div>
+        <button class="ghost-btn" id="exportBtn">JSON</button>
+        <button class="ghost-btn" id="exportMdBtn">Markdown</button>
+        <button class="ghost-btn" id="importBtn">Importar</button>
+        <input type="file" id="importFile" accept="application/json" />
       </div>
     </div>
   </div>
@@ -306,10 +323,14 @@ textarea.resp-body{ min-height:90px; }
     state.projects.forEach(p=>{
       if(!p.nodes) p.nodes = [];
       if(!p.errors) p.errors = [];
+      p.errors.forEach(e=>{ if(!e.linkedEndpoints) e.linkedEndpoints=[]; });
       p.nodes.forEach(n=>{
         if(n.parentId===undefined) n.parentId=null;
         if(n.type==="endpoint" && !n.responses) n.responses=[];
-        if(n.type==="folder" && !n.errors) n.errors=[];
+        if(n.type==="folder"){
+          if(!n.errors) n.errors=[];
+          n.errors.forEach(e=>{ if(!e.linkedEndpoints) e.linkedEndpoints=[]; });
+        }
       });
     });
   }
@@ -357,19 +378,42 @@ textarea.resp-body{ min-height:90px; }
 
   // Reusable "list of example responses" editor — used for an endpoint's
   // responses, and also for the general error catalogs (project/folder level).
-  function renderErrorCards(listEl, items, onChange){
+  function allEndpointsOf(proj){ return proj.nodes.filter(n=>n.type==="endpoint"); }
+  function endpointLabel(proj, ep){
+    const crumbs = pathToNode(proj, ep.parentId).map(p=>p.name);
+    return (crumbs.length ? crumbs.join("/")+" / " : "") + ep.method + " " + (ep.path||"/");
+  }
+
+  // Reusable "list of example responses" editor — used for an endpoint's own
+  // responses, the general error catalogs (project/folder level), and the
+  // read-only "linked errors" view inside an endpoint. `opts.proj` is needed
+  // to resolve/label linked endpoints; `opts.onRemove` lets callers decide
+  // whether the button deletes the item or just unlinks it; `opts.showLinker`
+  // toggles the inline "link this error to an endpoint" control.
+  function renderErrorCards(listEl, items, opts){
+    const { onChange, proj, onRemove, removeLabel="Quitar", showLinker=true } = opts;
     listEl.innerHTML = "";
     items.forEach(r=>{
+      if(!r.linkedEndpoints) r.linkedEndpoints = [];
+      const linked = r.linkedEndpoints.map(id=>findNode(proj,id)).filter(Boolean);
       const card = document.createElement("div");
       card.className = "response";
       card.innerHTML = `
         <div class="response-head">
           <input class="status-input mono ${statusClass(r.status)}" data-f="status" value="${escapeHtml(r.status)}" maxlength="3" />
           <input class="label-input" data-f="label" placeholder="Etiqueta (ej. No autorizado, Token expirado)" value="${escapeHtml(r.label)}" />
-          <button class="small-btn danger" data-act="del">Quitar</button>
+          <button class="small-btn danger" data-act="del">${removeLabel}</button>
         </div>
         <textarea class="mono resp-body" data-f="body" placeholder="{ }">${escapeHtml(r.body)}</textarea>
         <div class="hint" data-hint>&nbsp;</div>
+        ${linked.length ? `<div class="link-chips">${linked.map(ep=>`<span class="link-chip">🔗 ${escapeHtml(ep.path||ep.title||"endpoint")}<button type="button" data-unlink="${ep.id}" title="Quitar vínculo">×</button></span>`).join("")}</div>` : ``}
+        ${showLinker ? `<div class="link-row">
+          <select class="rte-select link-select">
+            <option value="">Vincular a un endpoint…</option>
+            ${allEndpointsOf(proj).filter(e=>!r.linkedEndpoints.includes(e.id)).map(e=>`<option value="${e.id}">${escapeHtml(endpointLabel(proj,e))}</option>`).join("")}
+          </select>
+          <button type="button" class="small-btn link-add-btn">Vincular</button>
+        </div>` : ``}
       `;
       listEl.appendChild(card);
       const statusInput = card.querySelector('[data-f="status"]');
@@ -382,8 +426,24 @@ textarea.resp-body{ min-height:90px; }
       validateJson(bodyTa,hintEl);
       bindAutosize(bodyTa, ()=>r.bodyHeight, h=>{ r.bodyHeight=h; onChange(); });
       card.querySelector('[data-act="del"]').addEventListener("click", ()=>{
-        items.splice(items.indexOf(r),1); onChange(); renderErrorCards(listEl, items, onChange);
+        if(onRemove) onRemove(r); else items.splice(items.indexOf(r),1);
+        onChange(); renderErrorCards(listEl, items, opts);
       });
+      card.querySelectorAll('[data-unlink]').forEach(btn=>{
+        btn.addEventListener("click", ()=>{
+          const id = btn.dataset.unlink;
+          r.linkedEndpoints = r.linkedEndpoints.filter(x=>x!==id);
+          onChange(); renderErrorCards(listEl, items, opts);
+        });
+      });
+      if(showLinker){
+        const linkSelect = card.querySelector(".link-select");
+        card.querySelector(".link-add-btn").addEventListener("click", ()=>{
+          if(!linkSelect.value) return;
+          r.linkedEndpoints.push(linkSelect.value);
+          onChange(); renderErrorCards(listEl, items, opts);
+        });
+      }
     });
     if(items.length===0) listEl.innerHTML = '<div class="hint">Sin errores generales todavía.</div>';
   }
@@ -662,17 +722,19 @@ textarea.resp-body{ min-height:90px; }
     renderTree();
   });
 
+  // The bulk-move bar and the normal export/share bar always coexist and
+  // stack — selecting items never hides the export options.
   function updateBulkBar(){
     const proj = currentProject();
     if(selectMode && multiSelected.size>0 && proj){
-      normalFooter.hidden = true; bulkBar.hidden = false;
+      bulkBar.hidden = false;
       bulkCountEl.textContent = multiSelected.size + (multiSelected.size===1?" elemento seleccionado":" elementos seleccionados");
       const others = state.projects.filter(p=>p.id!==proj.id);
       bulkProjectSelect.innerHTML = others.length
         ? others.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")
         : `<option value="">No hay otro proyecto</option>`;
     } else {
-      normalFooter.hidden = false; bulkBar.hidden = true;
+      bulkBar.hidden = true;
     }
   }
 
@@ -752,10 +814,11 @@ textarea.resp-body{ min-height:90px; }
     `;
     mainEl.appendChild(wrap);
     const listEl = wrap.querySelector("#projErrorsList");
-    renderErrorCards(listEl, proj.errors, ()=>{ save(); renderTree(); });
+    const projErrOpts = { onChange:()=>{ save(); renderTree(); }, proj };
+    renderErrorCards(listEl, proj.errors, projErrOpts);
     wrap.querySelector("#addProjErrBtn").addEventListener("click", ()=>{
-      proj.errors.push({ id:uid(), status:"401", label:"", body:"" });
-      save(); renderTree(); renderErrorCards(listEl, proj.errors, ()=>{ save(); renderTree(); });
+      proj.errors.push({ id:uid(), status:"401", label:"", body:"", linkedEndpoints:[] });
+      save(); renderTree(); renderErrorCards(listEl, proj.errors, projErrOpts);
     });
   }
 
@@ -802,10 +865,11 @@ textarea.resp-body{ min-height:90px; }
 
     if(!node.errors) node.errors = [];
     const errListEl = wrap.querySelector("#folderErrorsList");
-    renderErrorCards(errListEl, node.errors, ()=>{ save(); renderTree(); });
+    const folderErrOpts = { onChange:()=>{ save(); renderTree(); }, proj };
+    renderErrorCards(errListEl, node.errors, folderErrOpts);
     wrap.querySelector("#addFolderErrBtn").addEventListener("click", ()=>{
-      node.errors.push({ id:uid(), status:"401", label:"", body:"" });
-      save(); renderTree(); renderErrorCards(errListEl, node.errors, ()=>{ save(); renderTree(); });
+      node.errors.push({ id:uid(), status:"401", label:"", body:"", linkedEndpoints:[] });
+      save(); renderTree(); renderErrorCards(errListEl, node.errors, folderErrOpts);
     });
 
     wrap.querySelector("#renameFolderBtn").addEventListener("click", ()=>{
@@ -875,6 +939,20 @@ textarea.resp-body{ min-height:90px; }
           <button class="small-btn" id="addRespBtn">+ Agregar ejemplo</button>
         </div>
         <div id="responsesList"></div>
+      </div>
+      <div class="section">
+        <div class="section-head">
+          <div class="section-label">Errores generales aplicables</div>
+          <button class="small-btn" id="createLinkedErrBtn">+ Crear y vincular</button>
+        </div>
+        <p class="hint" style="margin:-2px 0 10px;">Errores del catálogo del proyecto o de esta carpeta que también aparecen aquí como ejemplo de este endpoint.</p>
+        <div class="link-row" style="margin-top:0;">
+          <select class="rte-select link-select" id="linkExistingSelect">
+            <option value="">Vincular un error existente…</option>
+          </select>
+          <button type="button" class="small-btn" id="linkExistingBtn">Vincular</button>
+        </div>
+        <div id="linkedErrorsList" style="margin-top:12px;"></div>
       </div>
       <div class="section">
         <div class="section-head"><div class="section-label">Notas</div></div>
@@ -1039,6 +1117,46 @@ textarea.resp-body{ min-height:90px; }
     wrap.querySelector("#addRespBtn").addEventListener("click", ()=>{
       ep.responses.push({ id:uid(), status:"200", label:"", body:"" }); save(); renderResponses();
     });
+
+    // Errors from the project's / this endpoint's ancestor folders' general
+    // error catalogs that are linked to this endpoint — editing them here
+    // edits the shared catalog entry (same object reference); "Quitar vínculo"
+    // only unlinks, it never deletes the catalog entry itself.
+    function scopeErrorsForEndpoint(){
+      const chain = pathToNode(proj, ep.parentId);
+      const scoped = proj.errors.map(e=>({ e, source: proj.name+" (proyecto)" }));
+      chain.forEach(f=> (f.errors||[]).forEach(e=> scoped.push({ e, source: f.name })));
+      return scoped;
+    }
+    const linkedListEl = wrap.querySelector("#linkedErrorsList");
+    const linkExistingSelect = wrap.querySelector("#linkExistingSelect");
+    function renderLinkedSection(){
+      const scoped = scopeErrorsForEndpoint();
+      const linked = scoped.filter(x=> (x.e.linkedEndpoints||[]).includes(ep.id)).map(x=>x.e);
+      renderErrorCards(linkedListEl, linked, {
+        onChange: ()=>{ save(); renderTree(); },
+        proj,
+        onRemove: (r)=>{ r.linkedEndpoints = (r.linkedEndpoints||[]).filter(id=>id!==ep.id); },
+        removeLabel: "Quitar vínculo",
+        showLinker: false
+      });
+      const available = scoped.filter(x=> !(x.e.linkedEndpoints||[]).includes(ep.id));
+      linkExistingSelect.innerHTML = '<option value="">Vincular un error existente…</option>' +
+        available.map(x=>`<option value="${x.e.id}">${escapeHtml((x.e.status||"")+(x.e.label?" — "+x.e.label:"")+" — "+x.source)}</option>`).join("");
+    }
+    renderLinkedSection();
+    wrap.querySelector("#linkExistingBtn").addEventListener("click", ()=>{
+      const id = linkExistingSelect.value; if(!id) return;
+      const match = scopeErrorsForEndpoint().find(x=>x.e.id===id);
+      if(!match) return;
+      if(!match.e.linkedEndpoints) match.e.linkedEndpoints = [];
+      match.e.linkedEndpoints.push(ep.id);
+      save(); renderTree(); renderLinkedSection();
+    });
+    wrap.querySelector("#createLinkedErrBtn").addEventListener("click", ()=>{
+      proj.errors.push({ id:uid(), status:"401", label:"", body:"", linkedEndpoints:[ep.id] });
+      save(); renderTree(); renderLinkedSection();
+    });
   }
 
   function renderAll(){ renderProjectSelect(); renderTree(); renderEditor(); }
@@ -1101,6 +1219,11 @@ textarea.resp-body{ min-height:90px; }
           n.responses.forEach(r=>{
             out += "**Respuesta " + (r.status||"") + (r.label? " — "+r.label:"") + ":**\n\n```json\n" + (r.body||"").trim() + "\n```\n\n";
           });
+          const chain = pathToNode(proj, n.parentId);
+          const scoped = proj.errors.concat(...chain.map(f=>f.errors||[]));
+          scoped.filter(e=>(e.linkedEndpoints||[]).includes(n.id)).forEach(r=>{
+            out += "**Respuesta " + (r.status||"") + (r.label? " — "+r.label:"") + " (error general):**\n\n```json\n" + (r.body||"").trim() + "\n```\n\n";
+          });
           const notesText = notesToMarkdown(n.notes);
           if(notesText) out += "_Notas:_ " + notesText + "\n\n";
           out += "---\n\n";
@@ -1136,6 +1259,21 @@ textarea.resp-body{ min-height:90px; }
   }
 
   // ---------- Share preview (standalone read-only HTML) ----------
+  // Bakes any general errors linked to this endpoint directly into its own
+  // cloned "responses" array (tagged general:true) so a shared preview shows
+  // them correctly even when it doesn't carry the full error catalog (e.g.
+  // sharing just one folder or a single endpoint).
+  function bakeLinkedErrors(proj, originalNode, cloneNode){
+    if(cloneNode.type !== "endpoint") return;
+    const chain = pathToNode(proj, originalNode.parentId);
+    const scoped = proj.errors.concat(...chain.map(f=>f.errors||[]));
+    const linked = scoped.filter(e=>(e.linkedEndpoints||[]).includes(originalNode.id));
+    if(linked.length){
+      cloneNode.responses = (cloneNode.responses||[]).concat(
+        JSON.parse(JSON.stringify(linked)).map(e=>({ status:e.status, label:e.label, body:e.body, general:true }))
+      );
+    }
+  }
   function subtreeNodes(proj, rootId){
     const ids = new Set(descendantIds(proj, rootId));
     const cloned = proj.nodes.filter(n=>ids.has(n.id)).map(n=>JSON.parse(JSON.stringify(n)));
@@ -1168,11 +1306,16 @@ textarea.resp-body{ min-height:90px; }
         shareMenu.hidden = true;
         const scope = btn.dataset.scope;
         if(scope==="project"){
-          shareAndDownload(proj.name, proj.nodes.map(n=>JSON.parse(JSON.stringify(n))), JSON.parse(JSON.stringify(proj.errors||[])));
+          const clones = proj.nodes.map(n=>{ const c=JSON.parse(JSON.stringify(n)); bakeLinkedErrors(proj,n,c); return c; });
+          shareAndDownload(proj.name, clones, JSON.parse(JSON.stringify(proj.errors||[])));
         } else if(scope==="folder"){
-          shareAndDownload(proj.name + " — " + folderNode.name, subtreeNodes(proj, folderNode.id), []);
+          const originals = new Map(proj.nodes.map(n=>[n.id,n]));
+          const clones = subtreeNodes(proj, folderNode.id);
+          clones.forEach(c=>{ const orig = originals.get(c.id); if(orig) bakeLinkedErrors(proj, orig, c); });
+          shareAndDownload(proj.name + " — " + folderNode.name, clones, []);
         } else if(scope==="endpoint"){
           const clone = JSON.parse(JSON.stringify(node)); clone.parentId = null;
+          bakeLinkedErrors(proj, node, clone);
           shareAndDownload((node.title||node.path||"endpoint"), [clone], []);
         }
       });
@@ -1260,7 +1403,9 @@ function showEndpoint(n){
   if(n.body && n.body.trim()){ html += '<div class="section"><div class="section-label">Body de la solicitud</div><pre class="mono">'+esc(n.body.trim())+'</pre></div>'; }
   if(n.responses && n.responses.length){
     html += '<div class="section"><div class="section-label">Ejemplos de respuesta</div>';
-    n.responses.forEach(r=>{ html += '<div class="response"><div class="resp-head">'+esc(r.status||"")+(r.label?' — '+esc(r.label):"")+'</div><pre class="mono">'+esc((r.body||"").trim())+'</pre></div>'; });
+    n.responses.forEach(r=>{
+      html += '<div class="response"><div class="resp-head">'+esc(r.status||"")+(r.label?' — '+esc(r.label):"")+(r.general?' <span style="opacity:.7;">(error general)</span>':'')+'</div><pre class="mono">'+esc((r.body||"").trim())+'</pre></div>';
+    });
     html += '</div>';
   }
   if(n.notes && n.notes.trim()){ html += '<div class="section"><div class="section-label">Notas</div><div class="notes-render">'+n.notes+'</div></div>'; }
