@@ -381,8 +381,8 @@ textarea.resp-body{ min-height:90px; }
   // responses, and also for the general error catalogs (project/folder level).
   function allEndpointsOf(proj){ return proj.nodes.filter(n=>n.type==="endpoint"); }
   function endpointLabel(proj, ep){
-    const crumbs = pathToNode(proj, ep.parentId).map(p=>p.name);
-    return (crumbs.length ? crumbs.join("/")+" / " : "") + ep.method + " " + (ep.path||"/");
+    const name = ep.title && ep.title.trim() ? ep.title.trim() : ep.method;
+    return name + " - " + (ep.path||"/");
   }
 
   // Reusable "list of example responses" editor — used for an endpoint's own
