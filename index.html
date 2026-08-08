@@ -729,22 +729,62 @@ textarea.resp-body{ min-height:90px; }
     const notesInput = wrap.querySelector("#notesInput");
     notesInput.addEventListener("input", ()=>{ ep.notes=notesInput.innerHTML; save(); });
     try{ document.execCommand("styleWithCSS", false, true); }catch(err){}
+
+    // Clicking a toolbar button normally steals focus from the contenteditable
+    // BEFORE the click fires, collapsing the text selection — which is why
+    // toggling a bullet list (or any command) on an existing selection failed.
+    // We keep a live copy of the last real selection and restore it first.
+    let savedRange = null;
+    function saveSelection(){
+      const sel = window.getSelection();
+      if(sel && sel.rangeCount && notesInput.contains(sel.anchorNode)){
+        savedRange = sel.getRangeAt(0).cloneRange();
+      }
+    }
+    notesInput.addEventListener("mouseup", saveSelection);
+    notesInput.addEventListener("keyup", saveSelection);
+    notesInput.addEventListener("focus", saveSelection);
+    function restoreSelection(){
+      notesInput.focus();
+      if(savedRange){
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(savedRange);
+      }
+    }
+    // Prevent buttons from stealing focus on mousedown in the first place.
+    wrap.querySelectorAll(".rte-btn").forEach(btn=>{
+      btn.addEventListener("mousedown", e=>e.preventDefault());
+    });
+
     wrap.querySelectorAll(".rte-btn").forEach(btn=>{
       btn.addEventListener("click", ()=>{
-        notesInput.focus();
-        document.execCommand(btn.dataset.cmd, false, null);
+        restoreSelection();
+        const cmd = btn.dataset.cmd;
+        if(cmd === "removeFormat"){
+          document.execCommand("removeFormat", false, null);
+          // removeFormat doesn't unwrap lists — do that explicitly so
+          // "Limpiar formato" also gets rid of bullets/numbering.
+          if(document.queryCommandState("insertUnorderedList")) document.execCommand("insertUnorderedList", false, null);
+          if(document.queryCommandState("insertOrderedList")) document.execCommand("insertOrderedList", false, null);
+        } else {
+          document.execCommand(cmd, false, null);
+        }
+        saveSelection();
         ep.notes = notesInput.innerHTML; save();
       });
     });
+    wrap.querySelector("#fontFamilySelect").addEventListener("mousedown", e=>saveSelection());
     wrap.querySelector("#fontFamilySelect").addEventListener("change", e=>{
       if(!e.target.value) return;
-      notesInput.focus();
+      restoreSelection();
       document.execCommand("fontName", false, e.target.value);
       ep.notes = notesInput.innerHTML; save(); e.target.value = "";
     });
+    wrap.querySelector("#fontSizeSelect").addEventListener("mousedown", e=>saveSelection());
     wrap.querySelector("#fontSizeSelect").addEventListener("change", e=>{
       if(!e.target.value) return;
-      notesInput.focus();
+      restoreSelection();
       document.execCommand("fontSize", false, e.target.value);
       ep.notes = notesInput.innerHTML; save(); e.target.value = "";
     });
