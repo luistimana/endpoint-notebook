@@ -77,7 +77,14 @@ body{
 .node-row.drop-before::before{ top:-2px; }
 .node-row.drop-after::after{ bottom:-2px; }
 .chevron{ width:14px; text-align:center; color:var(--ink-dim); font-size:10px; flex-shrink:0; }
-.folder-name{ font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.folder-name{ font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
+.row-add-btn{
+  flex-shrink:0; width:20px; height:20px; border-radius:6px; border:1px solid var(--line);
+  background:var(--bg); color:var(--ink-dim); font-size:13px; line-height:1; cursor:pointer;
+  display:none; align-items:center; justify-content:center;
+}
+.node-row:hover .row-add-btn{ display:flex; }
+.row-add-btn:hover{ border-color:var(--accent); color:var(--accent); }
 .item-path{ font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .item-title{ font-size:10.5px; color:var(--ink-dim); }
 .node-meta{ min-width:0; display:flex; flex-direction:column; gap:1px; }
@@ -391,10 +398,19 @@ textarea.resp-body{ min-height:90px; }
           row.innerHTML = `<div class="node-row ${n.id===activeNodeId?'active':''}" draggable="true" data-id="${n.id}" data-type="folder" style="padding-left:${8+depth*16}px">
             <span class="chevron">${children(proj,n.id).length ? (isExpanded?'▾':'▸') : '·'}</span>
             <span class="folder-name">📁 ${escapeHtml(n.name)}</span>
+            <button class="row-add-btn" title="Agregar subcarpeta" data-add-sub="${n.id}">+</button>
           </div>`;
           row.querySelector(".node-row").addEventListener("click", ()=>{
             if(isExpanded) expanded.delete(n.id); else expanded.add(n.id);
             activeNodeId = n.id; renderAll();
+          });
+          row.querySelector('[data-add-sub]').addEventListener("click", (e)=>{
+            e.stopPropagation();
+            const name = prompt("Nombre de la subcarpeta:", "Nueva carpeta");
+            if(!name) return;
+            const folder = newFolderNode(n.id, name.trim());
+            proj.nodes.push(folder); expanded.add(n.id);
+            activeNodeId = folder.id; save(); renderAll();
           });
           treeEl.appendChild(row);
           if(isExpanded) renderLevel(n.id, depth+1);
@@ -700,6 +716,7 @@ textarea.resp-body{ min-height:90px; }
           <textarea class="mono resp-body" data-f="body" placeholder="{ }">${escapeHtml(r.body)}</textarea>
           <div class="hint" data-hint>&nbsp;</div>
         `;
+        respList.appendChild(card);
         const statusInput = card.querySelector('[data-f="status"]');
         const labelInput = card.querySelector('[data-f="label"]');
         const bodyTa = card.querySelector('[data-f="body"]');
@@ -710,7 +727,6 @@ textarea.resp-body{ min-height:90px; }
         validateJson(bodyTa,hintEl);
         bindAutosize(bodyTa, ()=>r.bodyHeight, h=>{ r.bodyHeight=h; save(); });
         card.querySelector('[data-act="del"]').addEventListener("click", ()=>{ ep.responses.splice(ep.responses.indexOf(r),1); save(); renderResponses(); });
-        respList.appendChild(card);
       });
       if(ep.responses.length===0) respList.innerHTML = '<div class="hint">Sin ejemplos todavía.</div>';
     }
