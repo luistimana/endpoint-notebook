@@ -391,7 +391,14 @@ textarea.resp-body{ min-height:90px; }
   // to resolve/label linked endpoints; `opts.onRemove` lets callers decide
   // whether the button deletes the item or just unlinks it; `opts.showLinker`
   // toggles the inline "link this error to an endpoint" control.
+  // Rebuilding listEl.innerHTML removes whatever button/select the user just
+  // clicked, which drops browser focus onto <body> — inside the embedded
+  // artifact iframe that made the whole view jump back to the top. Restoring
+  // the scroll position after the rebuild (post-frame, once the browser's
+  // own focus-loss scroll has already happened) keeps the view in place.
   function renderErrorCards(listEl, items, opts){
+    const scrollY = window.scrollY;
+    const mainScroll = mainEl ? mainEl.scrollTop : 0;
     const { onChange, proj, onRemove, removeLabel="Quitar", showLinker=true } = opts;
     listEl.innerHTML = "";
     items.forEach(r=>{
@@ -453,6 +460,10 @@ textarea.resp-body{ min-height:90px; }
       }
     });
     if(items.length===0) listEl.innerHTML = '<div class="hint">Sin errores generales todavía.</div>';
+    requestAnimationFrame(()=>{
+      window.scrollTo(0, scrollY);
+      if(mainEl) mainEl.scrollTop = mainScroll;
+    });
   }
 
   // Autosize a textarea to its content; once the user drags the resize handle,
