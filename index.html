@@ -294,30 +294,30 @@ textarea.resp-body{ min-height:90px; }
 
   // Autosize a textarea to its content; once the user drags the resize handle,
   // remember that height (via setHeight) and stop overriding it on typing.
+  // Always fits the textarea to its content as you type. A manual drag-resize
+  // (if bigger than the content needs) is remembered as a floor, but typing
+  // more text keeps growing it past that floor — it never gets stuck small.
   function bindAutosize(ta, getHeight, setHeight){
     const MIN = 70;
-    let lastAutoHeight = null;
-    function fitToContent(){
-      ta.style.height = "auto";
-      const h = Math.max(MIN, ta.scrollHeight);
-      ta.style.height = h + "px";
-      lastAutoHeight = h;
-    }
-    const stored = getHeight();
-    let manual = !!stored;
-    if(stored){ ta.style.height = stored + "px"; }
-    else { fitToContent(); }
+    let floorHeight = getHeight() || 0;
+    let settingHeight = false;
 
-    ta.addEventListener("input", ()=>{
-      if(!manual) fitToContent();
-    });
+    function fitToContent(){
+      settingHeight = true;
+      ta.style.height = "auto";
+      const natural = ta.scrollHeight;
+      const target = Math.max(MIN, natural, floorHeight);
+      ta.style.height = target + "px";
+      requestAnimationFrame(()=>{ settingHeight = false; });
+    }
+    fitToContent();
+
+    ta.addEventListener("input", fitToContent);
 
     const ro = new ResizeObserver(()=>{
+      if(settingHeight) return;
       const h = Math.round(ta.getBoundingClientRect().height);
-      if(Math.abs(h - (lastAutoHeight||0)) > 1){
-        manual = true;
-        setHeight(h);
-      }
+      if(h > floorHeight){ floorHeight = h; setHeight(h); }
     });
     ro.observe(ta);
   }
