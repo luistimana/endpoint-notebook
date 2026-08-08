@@ -116,7 +116,7 @@ select.method.PUT{ background-color:var(--put); } select.method.PATCH{ backgroun
 .section{ margin-bottom:26px; }
 .section-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
 .section-label{ font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-dim); font-weight:600; }
-textarea{ width:100%; resize:vertical; min-height:110px; padding:12px 14px; border-radius:8px; border:1px solid var(--line); background:var(--mono-bg); color:var(--ink); font-size:12.8px; line-height:1.55; }
+textarea{ width:100%; resize:vertical; overflow-y:auto; padding:12px 14px; border-radius:8px; border:1px solid var(--line); background:var(--mono-bg); color:var(--ink); font-size:12.8px; line-height:1.55; }
 textarea.invalid{ border-color:var(--delete); }
 .hint{ font-size:11.5px; color:var(--ink-dim); margin-top:5px; }
 .hint.err{ color:var(--delete); }
@@ -265,6 +265,36 @@ textarea.resp-body{ min-height:90px; }
   }
   function escapeHtml(s){
     return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+
+  // Autosize a textarea to its content; once the user drags the resize handle,
+  // remember that height (via setHeight) and stop overriding it on typing.
+  function bindAutosize(ta, getHeight, setHeight){
+    const MIN = 70;
+    let lastAutoHeight = null;
+    function fitToContent(){
+      ta.style.height = "auto";
+      const h = Math.max(MIN, ta.scrollHeight);
+      ta.style.height = h + "px";
+      lastAutoHeight = h;
+    }
+    const stored = getHeight();
+    let manual = !!stored;
+    if(stored){ ta.style.height = stored + "px"; }
+    else { fitToContent(); }
+
+    ta.addEventListener("input", ()=>{
+      if(!manual) fitToContent();
+    });
+
+    const ro = new ResizeObserver(()=>{
+      const h = Math.round(ta.getBoundingClientRect().height);
+      if(Math.abs(h - (lastAutoHeight||0)) > 1){
+        manual = true;
+        setHeight(h);
+      }
+    });
+    ro.observe(ta);
   }
 
   // ---------- Project bar ----------
@@ -539,7 +569,11 @@ textarea.resp-body{ min-height:90px; }
     }
     bodyInput.addEventListener("input", e=>{ ep.body=e.target.value; save(); validateJson(bodyInput,bodyHint); });
     validateJson(bodyInput,bodyHint);
-    wrap.querySelector("#notesInput").addEventListener("input", e=>{ ep.notes=e.target.value; save(); });
+    bindAutosize(bodyInput, ()=>ep.bodyHeight, h=>{ ep.bodyHeight=h; save(); });
+
+    const notesInput = wrap.querySelector("#notesInput");
+    notesInput.addEventListener("input", e=>{ ep.notes=e.target.value; save(); });
+    bindAutosize(notesInput, ()=>ep.notesHeight, h=>{ ep.notesHeight=h; save(); });
 
     wrap.querySelector("#dupBtn").addEventListener("click", ()=>{
       const copy = JSON.parse(JSON.stringify(ep));
@@ -576,6 +610,7 @@ textarea.resp-body{ min-height:90px; }
         labelInput.addEventListener("input", e=>{ r.label=e.target.value; save(); });
         bodyTa.addEventListener("input", e=>{ r.body=e.target.value; save(); validateJson(bodyTa,hintEl); });
         validateJson(bodyTa,hintEl);
+        bindAutosize(bodyTa, ()=>r.bodyHeight, h=>{ r.bodyHeight=h; save(); });
         card.querySelector('[data-act="del"]').addEventListener("click", ()=>{ ep.responses.splice(ep.responses.indexOf(r),1); save(); renderResponses(); });
         respList.appendChild(card);
       });
