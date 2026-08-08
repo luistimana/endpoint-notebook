@@ -1,0 +1,539 @@
+<title>Endpoint Notebook</title>
+<style>
+:root{
+  --bg:#f6f5f2;
+  --bg-elev:#ffffff;
+  --ink:#1c1b19;
+  --ink-dim:#6b675f;
+  --line:#e3e0d9;
+  --accent:#3a4d8f;
+  --accent-ink:#f3f4fb;
+  --mono-bg:#efece4;
+  --get:#3d7a4f;
+  --post:#3a5fa0;
+  --put:#a3781f;
+  --patch:#8a5a2b;
+  --delete:#a83f3f;
+  --shadow: 0 1px 2px rgba(28,27,25,0.06), 0 4px 14px rgba(28,27,25,0.05);
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#17181a;
+    --bg-elev:#1f2023;
+    --ink:#eae8e3;
+    --ink-dim:#9a978f;
+    --line:#302f2c;
+    --accent:#8fa3e8;
+    --accent-ink:#161a2c;
+    --mono-bg:#242527;
+    --get:#6fbf85;
+    --post:#7f9de0;
+    --put:#d3a54c;
+    --patch:#cf9264;
+    --delete:#e07373;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#17181a; --bg-elev:#1f2023; --ink:#eae8e3; --ink-dim:#9a978f; --line:#302f2c;
+  --accent:#8fa3e8; --accent-ink:#161a2c; --mono-bg:#242527;
+  --get:#6fbf85; --post:#7f9de0; --put:#d3a54c; --patch:#cf9264; --delete:#e07373;
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35);
+}
+:root[data-theme="light"]{
+  --bg:#f6f5f2; --bg-elev:#ffffff; --ink:#1c1b19; --ink-dim:#6b675f; --line:#e3e0d9;
+  --accent:#3a4d8f; --accent-ink:#f3f4fb; --mono-bg:#efece4;
+  --get:#3d7a4f; --post:#3a5fa0; --put:#a3781f; --patch:#8a5a2b; --delete:#a83f3f;
+  --shadow: 0 1px 2px rgba(28,27,25,0.06), 0 4px 14px rgba(28,27,25,0.05);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size:14.5px; line-height:1.5;
+  height:100vh; overflow:hidden;
+}
+.mono{ font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+.app{ display:grid; grid-template-columns: 300px 1fr; height:100vh; }
+
+/* Sidebar */
+.sidebar{
+  border-right:1px solid var(--line);
+  display:flex; flex-direction:column; min-width:0;
+  background:var(--bg);
+}
+.brand{
+  padding:20px 18px 14px; border-bottom:1px solid var(--line);
+}
+.brand h1{
+  font-size:16px; margin:0 0 2px; letter-spacing:0.01em; font-weight:700;
+}
+.brand p{ margin:0; font-size:12px; color:var(--ink-dim); }
+
+.sidebar-controls{ padding:12px 14px; display:flex; gap:8px; border-bottom:1px solid var(--line); }
+.search{
+  flex:1; padding:8px 10px; border-radius:8px; border:1px solid var(--line);
+  background:var(--bg-elev); color:var(--ink); font-size:13px;
+}
+.search:focus{ outline:2px solid var(--accent); outline-offset:-1px; }
+
+.icon-btn{
+  border:1px solid var(--line); background:var(--bg-elev); color:var(--ink);
+  border-radius:8px; width:34px; height:34px; cursor:pointer; font-size:16px;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.icon-btn:hover{ border-color:var(--accent); color:var(--accent); }
+.icon-btn:focus-visible, .search:focus-visible, button:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-visible{
+  outline:2px solid var(--accent); outline-offset:1px;
+}
+
+.list{ flex:1; overflow-y:auto; padding:8px; }
+.list-empty{ padding:24px 16px; color:var(--ink-dim); font-size:13px; text-align:center; }
+.item{
+  padding:10px 10px; border-radius:8px; cursor:pointer; margin-bottom:2px;
+  display:flex; flex-direction:column; gap:3px; border:1px solid transparent;
+}
+.item:hover{ background:var(--bg-elev); }
+.item.active{ background:var(--bg-elev); border-color:var(--line); box-shadow:var(--shadow); }
+.item-top{ display:flex; align-items:center; gap:8px; }
+.item-path{ font-size:12.5px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.item-title{ font-size:11.5px; color:var(--ink-dim); padding-left:2px; }
+
+.badge{
+  font-size:10px; font-weight:700; letter-spacing:0.04em; padding:2px 6px; border-radius:5px;
+  color:#fff; text-transform:uppercase; flex-shrink:0;
+}
+.badge-GET{ background:var(--get); }
+.badge-POST{ background:var(--post); }
+.badge-PUT{ background:var(--put); }
+.badge-PATCH{ background:var(--patch); }
+.badge-DELETE{ background:var(--delete); }
+
+.sidebar-footer{
+  border-top:1px solid var(--line); padding:10px 12px; display:flex; gap:8px;
+}
+.ghost-btn{
+  flex:1; padding:8px 10px; border-radius:8px; border:1px solid var(--line);
+  background:transparent; color:var(--ink-dim); font-size:12.5px; cursor:pointer;
+}
+.ghost-btn:hover{ color:var(--ink); border-color:var(--accent); }
+input[type=file]{ display:none; }
+
+/* Main */
+.main{ overflow-y:auto; padding:28px 40px 80px; }
+.empty-state{
+  height:80vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  color:var(--ink-dim); gap:10px; text-align:center;
+}
+.empty-state .glyph{ font-size:34px; opacity:0.5; }
+
+.editor{ max-width:760px; }
+.row{ display:flex; gap:10px; align-items:center; margin-bottom:18px; }
+select.method{
+  appearance:none; -webkit-appearance:none;
+  font-weight:700; font-size:13px; letter-spacing:0.03em; text-transform:uppercase;
+  padding:10px 30px 10px 14px; border-radius:8px; border:1px solid var(--line);
+  color:#fff; cursor:pointer;
+  background-repeat:no-repeat; background-position:right 10px center; background-size:10px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='white'/></svg>");
+}
+select.method.GET{ background-color:var(--get); }
+select.method.POST{ background-color:var(--post); }
+select.method.PUT{ background-color:var(--put); }
+select.method.PATCH{ background-color:var(--patch); }
+select.method.DELETE{ background-color:var(--delete); }
+
+.path-input{
+  flex:1; padding:10px 12px; border-radius:8px; border:1px solid var(--line);
+  background:var(--mono-bg); color:var(--ink); font-size:14px;
+}
+.title-input{
+  width:100%; border:none; background:transparent; color:var(--ink);
+  font-size:22px; font-weight:700; padding:0 0 4px; margin-bottom:4px;
+  border-bottom:1px solid transparent;
+}
+.title-input:focus{ outline:none; border-bottom:1px solid var(--line); }
+.title-input::placeholder{ color:var(--ink-dim); font-weight:700; }
+
+.section{ margin-bottom:26px; }
+.section-head{
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
+}
+.section-label{
+  font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-dim); font-weight:600;
+}
+textarea{
+  width:100%; resize:vertical; min-height:110px; padding:12px 14px; border-radius:8px;
+  border:1px solid var(--line); background:var(--mono-bg); color:var(--ink);
+  font-size:12.8px; line-height:1.55;
+}
+textarea.invalid{ border-color:var(--delete); }
+.hint{ font-size:11.5px; color:var(--ink-dim); margin-top:5px; }
+.hint.err{ color:var(--delete); }
+
+.small-btn{
+  padding:6px 11px; font-size:12px; border-radius:7px; border:1px solid var(--line);
+  background:var(--bg-elev); color:var(--ink); cursor:pointer;
+}
+.small-btn:hover{ border-color:var(--accent); color:var(--accent); }
+.small-btn.danger:hover{ border-color:var(--delete); color:var(--delete); }
+
+.response{
+  border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:12px; background:var(--bg-elev);
+}
+.response-head{ display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+.status-input{
+  width:66px; padding:6px 8px; border-radius:6px; border:1px solid var(--line);
+  background:var(--mono-bg); color:var(--ink); font-size:12.5px; text-align:center;
+  font-variant-numeric: tabular-nums;
+}
+.status-input.s2{ color:var(--get); font-weight:700; }
+.status-input.s4{ color:var(--put); font-weight:700; }
+.status-input.s5{ color:var(--delete); font-weight:700; }
+.label-input{
+  flex:1; padding:6px 10px; border-radius:6px; border:1px solid var(--line);
+  background:transparent; color:var(--ink); font-size:12.5px;
+}
+textarea.resp-body{ min-height:90px; }
+
+.notes-area{ min-height:70px; font-family:ui-sans-serif,-apple-system,sans-serif; font-size:13px; }
+
+.topbar{
+  display:flex; justify-content:flex-end; gap:8px; padding-bottom:6px;
+}
+
+.toast{
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(10px);
+  background:var(--ink); color:var(--bg); padding:9px 16px; border-radius:8px; font-size:13px;
+  opacity:0; pointer-events:none; transition:opacity 0.18s ease, transform 0.18s ease;
+  box-shadow:var(--shadow);
+}
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+::-webkit-scrollbar{ width:9px; height:9px; }
+::-webkit-scrollbar-thumb{ background:var(--line); border-radius:5px; }
+::-webkit-scrollbar-track{ background:transparent; }
+
+@media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
+</style>
+
+<div class="app">
+  <div class="sidebar">
+    <div class="brand">
+      <h1>Endpoint Notebook</h1>
+      <p>Documentación local de APIs · sin peticiones</p>
+    </div>
+    <div class="sidebar-controls">
+      <input class="search" id="search" type="text" placeholder="Buscar por path o título…" />
+      <button class="icon-btn" id="addBtn" title="Nuevo endpoint">+</button>
+    </div>
+    <div class="list" id="list"></div>
+    <div class="sidebar-footer">
+      <button class="ghost-btn" id="exportBtn">Exportar JSON</button>
+      <button class="ghost-btn" id="exportMdBtn">Exportar .md</button>
+      <button class="ghost-btn" id="importBtn">Importar</button>
+      <input type="file" id="importFile" accept="application/json" />
+    </div>
+  </div>
+
+  <div class="main" id="main">
+    <div class="empty-state" id="emptyState">
+      <div class="glyph">◌</div>
+      <div>Sin endpoints todavía.</div>
+      <div>Crea uno nuevo con el botón “+”.</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  const STORAGE_KEY = "endpoint-notebook-v1";
+  const METHODS = ["GET","POST","PUT","PATCH","DELETE"];
+  let state = load();
+  let activeId = state.endpoints[0] ? state.endpoints[0].id : null;
+
+  function load(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw) return JSON.parse(raw);
+    }catch(e){}
+    return { endpoints: [] };
+  }
+  function save(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+  function uid(){ return Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
+
+  function newEndpoint(){
+    return {
+      id: uid(),
+      title: "",
+      method: "GET",
+      path: "/",
+      body: "",
+      notes: "",
+      responses: [ { id: uid(), status: "200", label: "Éxito", body: "{\n  \"code\": 0,\n  \"message\": \"Operación exitosa\",\n  \"data\": {}\n}" } ]
+    };
+  }
+
+  function toast(msg){
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=>t.classList.remove("show"), 1800);
+  }
+
+  function statusClass(s){
+    const n = parseInt(s,10);
+    if(n>=500) return "s5";
+    if(n>=400) return "s4";
+    if(n>=200 && n<300) return "s2";
+    return "";
+  }
+
+  // ---------- List rendering ----------
+  const listEl = document.getElementById("list");
+  const emptyState = document.getElementById("emptyState");
+  const searchEl = document.getElementById("search");
+
+  function renderList(){
+    const q = searchEl.value.trim().toLowerCase();
+    const items = state.endpoints.filter(e=>{
+      if(!q) return true;
+      return (e.path||"").toLowerCase().includes(q) || (e.title||"").toLowerCase().includes(q);
+    });
+    listEl.innerHTML = "";
+    if(state.endpoints.length===0){
+      listEl.innerHTML = '<div class="list-empty">Aún no hay endpoints guardados.</div>';
+    } else if(items.length===0){
+      listEl.innerHTML = '<div class="list-empty">Sin resultados para "'+escapeHtml(q)+'".</div>';
+    }
+    items.forEach(e=>{
+      const div = document.createElement("div");
+      div.className = "item" + (e.id===activeId ? " active":"");
+      div.innerHTML = '<div class="item-top"><span class="badge badge-'+e.method+'">'+e.method+'</span>'+
+        '<span class="item-path mono">'+escapeHtml(e.path||"/")+'</span></div>'+
+        (e.title ? '<div class="item-title">'+escapeHtml(e.title)+'</div>' : '');
+      div.addEventListener("click", ()=>{ activeId = e.id; renderAll(); });
+      listEl.appendChild(div);
+    });
+  }
+
+  function escapeHtml(s){
+    return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+
+  // ---------- Editor rendering ----------
+  const mainEl = document.getElementById("main");
+
+  function renderEditor(){
+    const ep = state.endpoints.find(e=>e.id===activeId);
+    if(!ep){
+      mainEl.innerHTML = '';
+      mainEl.appendChild(emptyState);
+      return;
+    }
+    mainEl.innerHTML = "";
+    const wrap = document.createElement("div");
+    wrap.className = "editor";
+
+    wrap.innerHTML = `
+      <div class="topbar">
+        <button class="small-btn" id="dupBtn">Duplicar</button>
+        <button class="small-btn danger" id="delBtn">Eliminar</button>
+      </div>
+      <input class="title-input" id="titleInput" placeholder="Título del endpoint (opcional)" value="${escapeHtml(ep.title)}" />
+      <div class="row">
+        <select class="method ${ep.method}" id="methodSelect">
+          ${METHODS.map(m=>`<option value="${m}" ${m===ep.method?"selected":""}>${m}</option>`).join("")}
+        </select>
+        <input class="path-input mono" id="pathInput" placeholder="/ruta/del-endpoint" value="${escapeHtml(ep.path)}" />
+      </div>
+
+      <div class="section">
+        <div class="section-head"><div class="section-label">Body de la solicitud</div></div>
+        <textarea class="mono" id="bodyInput" placeholder="{ }">${escapeHtml(ep.body)}</textarea>
+        <div class="hint" id="bodyHint">&nbsp;</div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <div class="section-label">Ejemplos de respuesta</div>
+          <button class="small-btn" id="addRespBtn">+ Agregar ejemplo</button>
+        </div>
+        <div id="responsesList"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><div class="section-label">Notas</div></div>
+        <textarea class="notes-area" id="notesInput" placeholder="Notas, headers requeridos, autenticación…">${escapeHtml(ep.notes)}</textarea>
+      </div>
+    `;
+    mainEl.appendChild(wrap);
+
+    // Header fields
+    wrap.querySelector("#titleInput").addEventListener("input", e=>{ ep.title=e.target.value; save(); renderList(); });
+    const methodSelect = wrap.querySelector("#methodSelect");
+    methodSelect.addEventListener("change", e=>{
+      ep.method = e.target.value; methodSelect.className = "method "+ep.method; save(); renderList();
+    });
+    wrap.querySelector("#pathInput").addEventListener("input", e=>{ ep.path=e.target.value; save(); renderList(); });
+
+    const bodyInput = wrap.querySelector("#bodyInput");
+    const bodyHint = wrap.querySelector("#bodyHint");
+    function validateJson(ta, hintEl){
+      const v = ta.value.trim();
+      if(!v){ ta.classList.remove("invalid"); hintEl.textContent=" "; hintEl.classList.remove("err"); return; }
+      try{ JSON.parse(v); ta.classList.remove("invalid"); hintEl.textContent="JSON válido"; hintEl.classList.remove("err"); }
+      catch(err){ ta.classList.add("invalid"); hintEl.textContent="JSON inválido: "+err.message; hintEl.classList.add("err"); }
+    }
+    bodyInput.addEventListener("input", e=>{ ep.body=e.target.value; save(); validateJson(bodyInput,bodyHint); });
+    validateJson(bodyInput,bodyHint);
+
+    wrap.querySelector("#notesInput").addEventListener("input", e=>{ ep.notes=e.target.value; save(); });
+
+    wrap.querySelector("#dupBtn").addEventListener("click", ()=>{
+      const copy = JSON.parse(JSON.stringify(ep));
+      copy.id = uid();
+      copy.title = (ep.title || ep.path) + " (copia)";
+      copy.responses.forEach(r=>r.id=uid());
+      state.endpoints.splice(state.endpoints.indexOf(ep)+1,0,copy);
+      activeId = copy.id; save(); renderAll(); toast("Endpoint duplicado");
+    });
+    wrap.querySelector("#delBtn").addEventListener("click", ()=>{
+      if(!confirm("¿Eliminar este endpoint? Esta acción no se puede deshacer.")) return;
+      const idx = state.endpoints.indexOf(ep);
+      state.endpoints.splice(idx,1);
+      activeId = state.endpoints[idx] ? state.endpoints[idx].id : (state.endpoints[idx-1] ? state.endpoints[idx-1].id : null);
+      save(); renderAll(); toast("Endpoint eliminado");
+    });
+
+    // Responses
+    const respList = wrap.querySelector("#responsesList");
+    function renderResponses(){
+      respList.innerHTML = "";
+      ep.responses.forEach(r=>{
+        const card = document.createElement("div");
+        card.className = "response";
+        card.innerHTML = `
+          <div class="response-head">
+            <input class="status-input mono ${statusClass(r.status)}" data-f="status" value="${escapeHtml(r.status)}" maxlength="3" />
+            <input class="label-input" data-f="label" placeholder="Etiqueta (ej. Éxito, No autorizado)" value="${escapeHtml(r.label)}" />
+            <button class="small-btn danger" data-act="del">Quitar</button>
+          </div>
+          <textarea class="mono resp-body" data-f="body" placeholder="{ }">${escapeHtml(r.body)}</textarea>
+          <div class="hint" data-hint>&nbsp;</div>
+        `;
+        const statusInput = card.querySelector('[data-f="status"]');
+        const labelInput = card.querySelector('[data-f="label"]');
+        const bodyTa = card.querySelector('[data-f="body"]');
+        const hintEl = card.querySelector('[data-hint]');
+
+        statusInput.addEventListener("input", e=>{
+          r.status = e.target.value; save();
+          statusInput.className = "status-input mono "+statusClass(r.status);
+        });
+        labelInput.addEventListener("input", e=>{ r.label=e.target.value; save(); });
+        bodyTa.addEventListener("input", e=>{ r.body=e.target.value; save(); validateJson(bodyTa,hintEl); });
+        validateJson(bodyTa,hintEl);
+
+        card.querySelector('[data-act="del"]').addEventListener("click", ()=>{
+          ep.responses.splice(ep.responses.indexOf(r),1);
+          save(); renderResponses();
+        });
+        respList.appendChild(card);
+      });
+      if(ep.responses.length===0){
+        respList.innerHTML = '<div class="hint">Sin ejemplos todavía.</div>';
+      }
+    }
+    renderResponses();
+
+    wrap.querySelector("#addRespBtn").addEventListener("click", ()=>{
+      ep.responses.push({ id:uid(), status:"200", label:"", body:"" });
+      save(); renderResponses();
+    });
+  }
+
+  function renderAll(){ renderList(); renderEditor(); }
+
+  // ---------- Toolbar actions ----------
+  document.getElementById("addBtn").addEventListener("click", ()=>{
+    const ep = newEndpoint();
+    state.endpoints.unshift(ep);
+    activeId = ep.id;
+    save(); renderAll();
+  });
+  searchEl.addEventListener("input", renderList);
+
+  document.getElementById("exportBtn").addEventListener("click", ()=>{
+    downloadFile("endpoints.json", JSON.stringify(state, null, 2), "application/json");
+    toast("JSON exportado");
+  });
+
+  document.getElementById("exportMdBtn").addEventListener("click", ()=>{
+    downloadFile("endpoints.md", toMarkdown(state.endpoints), "text/markdown");
+    toast("Markdown exportado");
+  });
+
+  function toMarkdown(endpoints){
+    let out = "# Documentación de Endpoints\n\n";
+    endpoints.forEach(e=>{
+      out += "## " + (e.title ? e.title + " — " : "") + "`" + e.method + " " + e.path + "`\n\n";
+      if(e.body && e.body.trim()){
+        out += "**Body:**\n\n```json\n" + e.body.trim() + "\n```\n\n";
+      }
+      e.responses.forEach(r=>{
+        out += "**Respuesta " + (r.status||"") + (r.label? " — "+r.label : "") + ":**\n\n";
+        out += "```json\n" + (r.body||"").trim() + "\n```\n\n";
+      });
+      if(e.notes && e.notes.trim()){
+        out += "_Notas:_ " + e.notes.trim() + "\n\n";
+      }
+      out += "---\n\n";
+    });
+    return out;
+  }
+
+  function downloadFile(name, content, type){
+    const blob = new Blob([content], {type});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById("importBtn").addEventListener("click", ()=>{
+    document.getElementById("importFile").click();
+  });
+  document.getElementById("importFile").addEventListener("change", (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const parsed = JSON.parse(reader.result);
+        if(!parsed.endpoints || !Array.isArray(parsed.endpoints)) throw new Error("Formato inválido");
+        parsed.endpoints.forEach(ep=>{ if(!ep.id) ep.id = uid(); if(!ep.responses) ep.responses=[]; });
+        state = parsed;
+        activeId = state.endpoints[0] ? state.endpoints[0].id : null;
+        save(); renderAll();
+        toast("Importado correctamente");
+      }catch(err){
+        alert("No se pudo importar el archivo: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  });
+
+  renderAll();
+})();
+</script>
