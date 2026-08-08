@@ -160,7 +160,25 @@ textarea.invalid{ border-color:var(--delete); }
 .status-input.s2{ color:var(--get); font-weight:700; } .status-input.s4{ color:var(--put); font-weight:700; } .status-input.s5{ color:var(--delete); font-weight:700; }
 .label-input{ flex:1; padding:6px 10px; border-radius:6px; border:1px solid var(--line); background:transparent; color:var(--ink); font-size:12.5px; }
 textarea.resp-body{ min-height:90px; }
-.notes-area{ min-height:70px; font-family:ui-sans-serif,-apple-system,sans-serif; font-size:13px; }
+.rte-toolbar{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.rte-btn{
+  min-width:30px; padding:5px 9px; border-radius:6px; border:1px solid var(--line);
+  background:var(--bg-elev); color:var(--ink); font-size:12.5px; cursor:pointer;
+}
+.rte-btn:hover{ border-color:var(--accent); color:var(--accent); }
+.rte-btn.active{ border-color:var(--accent); color:var(--accent); background:var(--mono-bg); }
+.rte-select{
+  padding:5px 8px; border-radius:6px; border:1px solid var(--line); background:var(--bg-elev);
+  color:var(--ink); font-size:12.3px; max-width:130px;
+}
+.notes-area{
+  min-height:70px; font-family:ui-sans-serif,-apple-system,sans-serif; font-size:13px;
+  border:1px solid var(--line); border-radius:8px; padding:12px 14px; background:var(--mono-bg); color:var(--ink);
+  line-height:1.6;
+}
+.notes-area:focus{ outline:2px solid var(--accent); outline-offset:-1px; }
+.notes-area:empty::before{ content:attr(data-placeholder); color:var(--ink-dim); }
+.notes-area ul, .notes-area ol{ margin:4px 0; padding-left:22px; }
 .move-select{ padding:6px 8px; border-radius:6px; border:1px solid var(--line); background:var(--bg-elev); color:var(--ink); font-size:12.3px; }
 
 .topbar{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding-bottom:6px; }
@@ -658,7 +676,30 @@ textarea.resp-body{ min-height:90px; }
       </div>
       <div class="section">
         <div class="section-head"><div class="section-label">Notas</div></div>
-        <textarea class="notes-area" id="notesInput" placeholder="Notas, headers requeridos, autenticación…">${escapeHtml(ep.notes)}</textarea>
+        <div class="rte-toolbar" id="notesToolbar">
+          <select class="rte-select" id="fontFamilySelect">
+            <option value="">Tipo de letra</option>
+            <option value="ui-sans-serif,-apple-system,sans-serif">Predeterminada</option>
+            <option value="Georgia, serif">Serif</option>
+            <option value="ui-monospace, Menlo, monospace">Monoespaciada</option>
+            <option value="Comic Sans MS, sans-serif">Comic Sans</option>
+          </select>
+          <select class="rte-select" id="fontSizeSelect">
+            <option value="">Tamaño</option>
+            <option value="2">Pequeño</option>
+            <option value="3">Normal</option>
+            <option value="5">Grande</option>
+            <option value="7">Enorme</option>
+          </select>
+          <button type="button" class="rte-btn" data-cmd="bold" title="Negrita"><b>N</b></button>
+          <button type="button" class="rte-btn" data-cmd="italic" title="Cursiva"><i>C</i></button>
+          <button type="button" class="rte-btn" data-cmd="underline" title="Subrayado"><u>S</u></button>
+          <button type="button" class="rte-btn" data-cmd="strikeThrough" title="Tachado"><s>T</s></button>
+          <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Lista con viñetas">• Lista</button>
+          <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Lista numerada">1. Lista</button>
+          <button type="button" class="rte-btn" data-cmd="removeFormat" title="Limpiar formato">Limpiar</button>
+        </div>
+        <div class="notes-area" id="notesInput" contenteditable="true" data-placeholder="Notas, headers requeridos, autenticación…">${ep.notes||""}</div>
       </div>
     `;
     mainEl.appendChild(wrap);
@@ -686,8 +727,27 @@ textarea.resp-body{ min-height:90px; }
     bindAutosize(bodyInput, ()=>ep.bodyHeight, h=>{ ep.bodyHeight=h; save(); });
 
     const notesInput = wrap.querySelector("#notesInput");
-    notesInput.addEventListener("input", e=>{ ep.notes=e.target.value; save(); });
-    bindAutosize(notesInput, ()=>ep.notesHeight, h=>{ ep.notesHeight=h; save(); });
+    notesInput.addEventListener("input", ()=>{ ep.notes=notesInput.innerHTML; save(); });
+    try{ document.execCommand("styleWithCSS", false, true); }catch(err){}
+    wrap.querySelectorAll(".rte-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        notesInput.focus();
+        document.execCommand(btn.dataset.cmd, false, null);
+        ep.notes = notesInput.innerHTML; save();
+      });
+    });
+    wrap.querySelector("#fontFamilySelect").addEventListener("change", e=>{
+      if(!e.target.value) return;
+      notesInput.focus();
+      document.execCommand("fontName", false, e.target.value);
+      ep.notes = notesInput.innerHTML; save(); e.target.value = "";
+    });
+    wrap.querySelector("#fontSizeSelect").addEventListener("change", e=>{
+      if(!e.target.value) return;
+      notesInput.focus();
+      document.execCommand("fontSize", false, e.target.value);
+      ep.notes = notesInput.innerHTML; save(); e.target.value = "";
+    });
 
     wrap.querySelector("#dupBtn").addEventListener("click", ()=>{
       const copy = JSON.parse(JSON.stringify(ep));
@@ -785,13 +845,30 @@ textarea.resp-body{ min-height:90px; }
           n.responses.forEach(r=>{
             out += "**Respuesta " + (r.status||"") + (r.label? " — "+r.label:"") + ":**\n\n```json\n" + (r.body||"").trim() + "\n```\n\n";
           });
-          if(n.notes && n.notes.trim()) out += "_Notas:_ " + n.notes.trim() + "\n\n";
+          const notesText = notesToMarkdown(n.notes);
+          if(notesText) out += "_Notas:_ " + notesText + "\n\n";
           out += "---\n\n";
         }
       });
     }
     walk(null, 0);
     return out;
+  }
+
+  function notesToMarkdown(html){
+    if(!html || !html.trim()) return "";
+    let s = html;
+    s = s.replace(/<(b|strong)[^>]*>(.*?)<\/(b|strong)>/gis, "**$2**");
+    s = s.replace(/<(i|em)[^>]*>(.*?)<\/(i|em)>/gis, "*$2*");
+    s = s.replace(/<u[^>]*>(.*?)<\/u>/gis, "_$1_");
+    s = s.replace(/<s[^>]*>(.*?)<\/s>/gis, "~~$1~~");
+    s = s.replace(/<li[^>]*>(.*?)<\/li>/gis, "- $1\n");
+    s = s.replace(/<br\s*\/?>/gi, "\n");
+    s = s.replace(/<\/(p|div|ul|ol)>/gi, "\n");
+    s = s.replace(/<[^>]+>/g, "");
+    const ta = document.createElement("textarea");
+    ta.innerHTML = s;
+    return ta.value.trim();
   }
 
   function downloadFile(name, content, type){
@@ -872,6 +949,7 @@ textarea.resp-body{ min-height:90px; }
 .main h2{margin:0 0 14px;} .section-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);font-weight:600;margin-bottom:6px;}
 pre{background:var(--mono-bg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto;font-size:12.5px;}
 .section{margin-bottom:22px;} .empty{color:var(--ink-dim);padding:60px;text-align:center;}
+.notes-render{line-height:1.6;} .notes-render ul,.notes-render ol{margin:4px 0;padding-left:22px;}
 .response{border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--bg-elev);}
 .resp-head{font-size:12px;color:var(--ink-dim);margin-bottom:6px;}
 .banner{font-size:11.5px;color:var(--ink-dim);border-bottom:1px solid var(--line);padding:8px 36px;}
@@ -908,7 +986,7 @@ function showEndpoint(n){
     n.responses.forEach(r=>{ html += '<div class="response"><div class="resp-head">'+esc(r.status||"")+(r.label?' — '+esc(r.label):"")+'</div><pre class="mono">'+esc((r.body||"").trim())+'</pre></div>'; });
     html += '</div>';
   }
-  if(n.notes && n.notes.trim()){ html += '<div class="section"><div class="section-label">Notas</div><div>'+esc(n.notes)+'</div></div>'; }
+  if(n.notes && n.notes.trim()){ html += '<div class="section"><div class="section-label">Notas</div><div class="notes-render">'+n.notes+'</div></div>'; }
   mainEl.innerHTML = html;
 }
 renderLevel(null, 0);
