@@ -60,9 +60,17 @@ body{
 .tree-toolbar-row{ display:flex; gap:8px; min-width:0; }
 .search{ flex:1; min-width:0; padding:7px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg-elev); color:var(--ink); font-size:12.8px; }
 .text-btn{ flex:1; min-width:0; padding:7px 8px; border-radius:8px; border:1px solid var(--line); background:var(--bg-elev); color:var(--ink); font-size:12px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.text-btn.primary{ border-color:var(--accent); color:var(--accent); font-weight:600; }
 .text-btn:hover{ border-color:var(--accent); color:var(--accent); }
 
-.tree{ flex:1; overflow-y:auto; padding:8px; padding-bottom:64px; }
+.tree{ flex:1; min-height:0; overflow-y:auto; padding:8px; padding-bottom:96px; }
+.node-row.special{ font-size:13px; font-weight:600; color:var(--ink-dim); }
+.node-row.special:hover, .node-row.special.active{ color:var(--ink); }
+.row-check{
+  flex-shrink:0; width:16px; height:16px; border-radius:4px; border:1.5px solid var(--ink-dim);
+  display:flex; align-items:center; justify-content:center; font-size:11px; color:#fff;
+}
+.row-check.checked{ background:var(--accent); border-color:var(--accent); }
 .tree-empty{ padding:24px 16px; color:var(--ink-dim); font-size:13px; text-align:center; }
 .node{ border-radius:8px; margin-bottom:1px; }
 .node-row{ display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:8px; cursor:grab; border:1px solid transparent; position:relative; }
@@ -217,9 +225,12 @@ textarea.resp-body{ min-height:90px; }
         <button class="text-btn" id="addFolderBtn">+ Carpeta</button>
         <button class="text-btn" id="addEndpointBtn">+ Endpoint</button>
       </div>
+      <div class="tree-toolbar-row">
+        <button class="text-btn" id="selectModeBtn">☑ Seleccionar varios</button>
+      </div>
     </div>
     <div class="tree" id="tree"></div>
-    <div class="sidebar-footer">
+    <div class="sidebar-footer" id="normalFooter">
       <div class="share-wrap">
         <button class="ghost-btn primary" id="shareBtn" style="width:100%;">Compartir vista previa ▾</button>
         <div class="share-menu" id="shareMenu" hidden></div>
@@ -228,6 +239,16 @@ textarea.resp-body{ min-height:90px; }
       <button class="ghost-btn" id="exportMdBtn">Markdown</button>
       <button class="ghost-btn" id="importBtn">Importar</button>
       <input type="file" id="importFile" accept="application/json" />
+    </div>
+    <div class="sidebar-footer" id="bulkBar" hidden>
+      <div style="width:100%; display:flex; flex-direction:column; gap:6px;">
+        <div class="hint" id="bulkCount" style="margin:0;">0 seleccionados</div>
+        <div style="display:flex; gap:6px;">
+          <select class="move-select" id="bulkProjectSelect" style="flex:1;"></select>
+          <button class="small-btn" id="bulkMoveBtn">Mover</button>
+          <button class="small-btn danger" id="bulkCancelBtn">Cancelar</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -251,6 +272,8 @@ textarea.resp-body{ min-height:90px; }
   let activeProjectId = state.projects[0] ? state.projects[0].id : null;
   let activeNodeId = null;
   const expanded = new Set();
+  let selectMode = false;
+  const multiSelected = new Set();
 
   function uid(){ return Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
 
@@ -282,7 +305,12 @@ textarea.resp-body{ min-height:90px; }
     if(!state.projects) state.projects = [];
     state.projects.forEach(p=>{
       if(!p.nodes) p.nodes = [];
-      p.nodes.forEach(n=>{ if(n.parentId===undefined) n.parentId=null; if(n.type==="endpoint" && !n.responses) n.responses=[]; });
+      if(!p.errors) p.errors = [];
+      p.nodes.forEach(n=>{
+        if(n.parentId===undefined) n.parentId=null;
+        if(n.type==="endpoint" && !n.responses) n.responses=[];
+        if(n.type==="folder" && !n.errors) n.errors=[];
+      });
     });
   }
 
@@ -306,7 +334,7 @@ textarea.resp-body{ min-height:90px; }
     return { id: uid(), parentId, type:"endpoint", title:"", method:"GET", path:"/", body:"", notes:"",
       responses:[ { id: uid(), status:"200", label:"Éxito", body:"{\n  \"code\": 0,\n  \"message\": \"Operación exitosa\",\n  \"data\": {}\n}" } ] };
   }
-  function newFolderNode(parentId, name){ return { id: uid(), parentId, type:"folder", name: name||"Nueva carpeta" }; }
+  function newFolderNode(parentId, name){ return { id: uid(), parentId, type:"folder", name: name||"Nueva carpeta", errors: [] }; }
 
   function toast(msg){
     const t = document.getElementById("toast");
@@ -319,6 +347,45 @@ textarea.resp-body{ min-height:90px; }
   }
   function escapeHtml(s){
     return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  function validateJson(ta, hintEl){
+    const v = ta.value.trim();
+    if(!v){ ta.classList.remove("invalid"); hintEl.textContent=" "; hintEl.classList.remove("err"); return; }
+    try{ JSON.parse(v); ta.classList.remove("invalid"); hintEl.textContent="JSON válido"; hintEl.classList.remove("err"); }
+    catch(err){ ta.classList.add("invalid"); hintEl.textContent="JSON inválido: "+err.message; hintEl.classList.add("err"); }
+  }
+
+  // Reusable "list of example responses" editor — used for an endpoint's
+  // responses, and also for the general error catalogs (project/folder level).
+  function renderErrorCards(listEl, items, onChange){
+    listEl.innerHTML = "";
+    items.forEach(r=>{
+      const card = document.createElement("div");
+      card.className = "response";
+      card.innerHTML = `
+        <div class="response-head">
+          <input class="status-input mono ${statusClass(r.status)}" data-f="status" value="${escapeHtml(r.status)}" maxlength="3" />
+          <input class="label-input" data-f="label" placeholder="Etiqueta (ej. No autorizado, Token expirado)" value="${escapeHtml(r.label)}" />
+          <button class="small-btn danger" data-act="del">Quitar</button>
+        </div>
+        <textarea class="mono resp-body" data-f="body" placeholder="{ }">${escapeHtml(r.body)}</textarea>
+        <div class="hint" data-hint>&nbsp;</div>
+      `;
+      listEl.appendChild(card);
+      const statusInput = card.querySelector('[data-f="status"]');
+      const labelInput = card.querySelector('[data-f="label"]');
+      const bodyTa = card.querySelector('[data-f="body"]');
+      const hintEl = card.querySelector('[data-hint]');
+      statusInput.addEventListener("input", e=>{ r.status=e.target.value; onChange(); statusInput.className="status-input mono "+statusClass(r.status); });
+      labelInput.addEventListener("input", e=>{ r.label=e.target.value; onChange(); });
+      bodyTa.addEventListener("input", e=>{ r.body=e.target.value; onChange(); validateJson(bodyTa,hintEl); });
+      validateJson(bodyTa,hintEl);
+      bindAutosize(bodyTa, ()=>r.bodyHeight, h=>{ r.bodyHeight=h; onChange(); });
+      card.querySelector('[data-act="del"]').addEventListener("click", ()=>{
+        items.splice(items.indexOf(r),1); onChange(); renderErrorCards(listEl, items, onChange);
+      });
+    });
+    if(items.length===0) listEl.innerHTML = '<div class="hint">Sin errores generales todavía.</div>';
   }
 
   // Autosize a textarea to its content; once the user drags the resize handle,
@@ -372,7 +439,7 @@ textarea.resp-body{ min-height:90px; }
   document.getElementById("newProjectBtn").addEventListener("click", ()=>{
     const name = prompt("Nombre del nuevo proyecto:", "Nuevo proyecto");
     if(!name) return;
-    const proj = { id: uid(), name: name.trim(), nodes: [] };
+    const proj = { id: uid(), name: name.trim(), nodes: [], errors: [] };
     state.projects.push(proj); activeProjectId = proj.id; activeNodeId = null;
     save(); renderAll();
   });
@@ -394,10 +461,20 @@ textarea.resp-body{ min-height:90px; }
   const treeEl = document.getElementById("tree");
   const searchEl = document.getElementById("search");
 
+  const PROJECT_ERRORS_ID = "__project_errors__";
+
   function renderTree(){
     const proj = currentProject();
     treeEl.innerHTML = "";
-    if(!proj){ treeEl.innerHTML = '<div class="tree-empty">Crea un proyecto para empezar.</div>'; return; }
+    if(!proj){ treeEl.innerHTML = '<div class="tree-empty">Crea un proyecto para empezar.</div>'; updateBulkBar(); return; }
+
+    const pinned = document.createElement("div");
+    pinned.innerHTML = `<div class="node-row special ${activeNodeId===PROJECT_ERRORS_ID?'active':''}" style="padding-left:8px;">
+      ⚠️ Errores generales del proyecto ${proj.errors.length?'<span class="hint" style="margin:0 0 0 4px;">('+proj.errors.length+')</span>':''}
+    </div>`;
+    pinned.querySelector(".node-row").addEventListener("click", ()=>{ activeNodeId = PROJECT_ERRORS_ID; renderAll(); });
+    treeEl.appendChild(pinned);
+
     const q = searchEl.value.trim().toLowerCase();
     const filtering = !!q;
 
@@ -410,6 +487,8 @@ textarea.resp-body{ min-height:90px; }
       return children(proj,n.id).some(subtreeMatches);
     }
 
+    const checkHtml = (id)=> selectMode ? `<span class="row-check ${multiSelected.has(id)?'checked':''}" data-check="${id}">${multiSelected.has(id)?'✓':''}</span>` : "";
+
     function renderLevel(parentId, depth){
       const list = children(proj, parentId).filter(n=> !filtering || subtreeMatches(n));
       list.forEach(n=>{
@@ -417,16 +496,19 @@ textarea.resp-body{ min-height:90px; }
         row.className = "node";
         const isExpanded = filtering || expanded.has(n.id);
         if(n.type==="folder"){
-          row.innerHTML = `<div class="node-row ${n.id===activeNodeId?'active':''}" draggable="true" data-id="${n.id}" data-type="folder" style="padding-left:${8+depth*16}px">
+          row.innerHTML = `<div class="node-row ${n.id===activeNodeId?'active':''}" draggable="${!selectMode}" data-id="${n.id}" data-type="folder" style="padding-left:${8+depth*16}px">
+            ${checkHtml(n.id)}
             <span class="chevron">${children(proj,n.id).length ? (isExpanded?'▾':'▸') : '·'}</span>
             <span class="folder-name">📁 ${escapeHtml(n.name)}</span>
-            <button class="row-add-btn" title="Agregar subcarpeta" data-add-sub="${n.id}">+</button>
+            ${selectMode?"":'<button class="row-add-btn" title="Agregar subcarpeta" data-add-sub="'+n.id+'">+</button>'}
           </div>`;
           row.querySelector(".node-row").addEventListener("click", ()=>{
+            if(selectMode){ toggleSelect(n.id); return; }
             if(isExpanded) expanded.delete(n.id); else expanded.add(n.id);
             activeNodeId = n.id; renderAll();
           });
-          row.querySelector('[data-add-sub]').addEventListener("click", (e)=>{
+          const addSubBtn = row.querySelector('[data-add-sub]');
+          if(addSubBtn) addSubBtn.addEventListener("click", (e)=>{
             e.stopPropagation();
             const name = prompt("Nombre de la subcarpeta:", "Nueva carpeta");
             if(!name) return;
@@ -437,14 +519,18 @@ textarea.resp-body{ min-height:90px; }
           treeEl.appendChild(row);
           if(isExpanded) renderLevel(n.id, depth+1);
         } else {
-          row.innerHTML = `<div class="node-row ${n.id===activeNodeId?'active':''}" draggable="true" data-id="${n.id}" data-type="endpoint" style="padding-left:${8+depth*16+14}px">
+          row.innerHTML = `<div class="node-row ${n.id===activeNodeId?'active':''}" draggable="${!selectMode}" data-id="${n.id}" data-type="endpoint" style="padding-left:${8+depth*16+14}px">
+            ${checkHtml(n.id)}
             <span class="badge badge-${n.method}">${n.method}</span>
             <div class="node-meta">
               <span class="item-path mono">${escapeHtml(n.path||"/")}</span>
               ${n.title?'<span class="item-title">'+escapeHtml(n.title)+'</span>':''}
             </div>
           </div>`;
-          row.querySelector(".node-row").addEventListener("click", ()=>{ activeNodeId = n.id; renderAll(); });
+          row.querySelector(".node-row").addEventListener("click", ()=>{
+            if(selectMode){ toggleSelect(n.id); return; }
+            activeNodeId = n.id; renderAll();
+          });
           treeEl.appendChild(row);
         }
       });
@@ -453,6 +539,12 @@ textarea.resp-body{ min-height:90px; }
       }
     }
     renderLevel(null, 0);
+    updateBulkBar();
+  }
+
+  function toggleSelect(id){
+    if(multiSelected.has(id)) multiSelected.delete(id); else multiSelected.add(id);
+    renderTree();
   }
 
   // ---------- Drag & drop reordering ----------
@@ -555,6 +647,72 @@ textarea.resp-body{ min-height:90px; }
   }
   searchEl.addEventListener("input", renderTree);
 
+  // ---------- Bulk move between projects ----------
+  const normalFooter = document.getElementById("normalFooter");
+  const bulkBar = document.getElementById("bulkBar");
+  const bulkCountEl = document.getElementById("bulkCount");
+  const bulkProjectSelect = document.getElementById("bulkProjectSelect");
+  const selectModeBtn = document.getElementById("selectModeBtn");
+
+  selectModeBtn.addEventListener("click", ()=>{
+    selectMode = !selectMode;
+    multiSelected.clear();
+    selectModeBtn.textContent = selectMode ? "✕ Cancelar selección" : "☑ Seleccionar varios";
+    selectModeBtn.classList.toggle("primary", selectMode);
+    renderTree();
+  });
+
+  function updateBulkBar(){
+    const proj = currentProject();
+    if(selectMode && multiSelected.size>0 && proj){
+      normalFooter.hidden = true; bulkBar.hidden = false;
+      bulkCountEl.textContent = multiSelected.size + (multiSelected.size===1?" elemento seleccionado":" elementos seleccionados");
+      const others = state.projects.filter(p=>p.id!==proj.id);
+      bulkProjectSelect.innerHTML = others.length
+        ? others.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")
+        : `<option value="">No hay otro proyecto</option>`;
+    } else {
+      normalFooter.hidden = false; bulkBar.hidden = true;
+    }
+  }
+
+  function computeMoveRoots(proj, ids){
+    return [...ids].filter(id=>{
+      const n = findNode(proj, id);
+      if(!n) return false;
+      let p = n.parentId;
+      while(p){ if(ids.has(p)) return false; const pn = findNode(proj,p); p = pn ? pn.parentId : null; }
+      return true;
+    });
+  }
+
+  document.getElementById("bulkCancelBtn").addEventListener("click", ()=>{
+    multiSelected.clear(); selectMode = false;
+    selectModeBtn.textContent = "☑ Seleccionar varios"; selectModeBtn.classList.remove("primary");
+    renderTree();
+  });
+  document.getElementById("bulkMoveBtn").addEventListener("click", ()=>{
+    const proj = currentProject();
+    const targetId = bulkProjectSelect.value;
+    if(!proj || !targetId){ toast("No hay proyecto destino disponible"); return; }
+    const target = state.projects.find(p=>p.id===targetId);
+    if(!target) return;
+    const roots = computeMoveRoots(proj, multiSelected);
+    const moveIds = new Set();
+    roots.forEach(id=> descendantIds(proj, id).forEach(d=>moveIds.add(d)));
+    const moved = proj.nodes.filter(n=>moveIds.has(n.id));
+    proj.nodes = proj.nodes.filter(n=>!moveIds.has(n.id));
+    moved.forEach(n=>{ if(roots.includes(n.id)) n.parentId = null; });
+    if(!target.errors) target.errors = [];
+    target.nodes.push(...moved);
+    multiSelected.clear(); selectMode = false;
+    selectModeBtn.textContent = "☑ Seleccionar varios"; selectModeBtn.classList.remove("primary");
+    activeNodeId = null;
+    save();
+    toast(moved.filter(n=>n.type==="endpoint").length + " endpoint(s) movidos a \"" + target.name + "\"");
+    renderAll();
+  });
+
   // ---------- Main editor ----------
   const mainEl = document.getElementById("main");
   const emptyState = document.getElementById("emptyState");
@@ -572,12 +730,33 @@ textarea.resp-body{ min-height:90px; }
       if(proj) { emptyState.querySelector("div:nth-child(2)").textContent = "Nada seleccionado."; }
       return;
     }
+    if(activeNodeId === PROJECT_ERRORS_ID){
+      mainEl.innerHTML = ""; renderProjectErrorsPanel(proj); return;
+    }
     const node = findNode(proj, activeNodeId);
     if(!node){ mainEl.innerHTML=""; mainEl.appendChild(emptyState); return; }
 
     mainEl.innerHTML = "";
     if(node.type==="folder"){ renderFolderPanel(proj, node); }
     else { renderEndpointPanel(proj, node); }
+  }
+
+  function renderProjectErrorsPanel(proj){
+    const wrap = document.createElement("div");
+    wrap.className = "editor";
+    wrap.innerHTML = `
+      <h2 style="margin:0 0 4px;">⚠️ Errores generales</h2>
+      <p class="hint" style="margin:0 0 18px;">Respuestas de error comunes a todo el proyecto <b>${escapeHtml(proj.name)}</b> (ej. 401 sin token, 500 error interno). Aplican a cualquier endpoint salvo que uno documente algo distinto.</p>
+      <div class="section-head"><div class="section-label">Catálogo de errores</div><button class="small-btn" id="addProjErrBtn">+ Agregar error</button></div>
+      <div id="projErrorsList"></div>
+    `;
+    mainEl.appendChild(wrap);
+    const listEl = wrap.querySelector("#projErrorsList");
+    renderErrorCards(listEl, proj.errors, ()=>{ save(); renderTree(); });
+    wrap.querySelector("#addProjErrBtn").addEventListener("click", ()=>{
+      proj.errors.push({ id:uid(), status:"401", label:"", body:"" });
+      save(); renderTree(); renderErrorCards(listEl, proj.errors, ()=>{ save(); renderTree(); });
+    });
   }
 
   function renderFolderPanel(proj, node){
@@ -598,6 +777,11 @@ textarea.resp-body{ min-height:90px; }
         <button class="small-btn" id="addEndpointHereBtn">+ Endpoint aquí</button>
       </div>
       <div class="child-list" id="childList"></div>
+      <div class="section" style="margin-top:26px;">
+        <div class="section-head"><div class="section-label">Errores generales de esta carpeta</div><button class="small-btn" id="addFolderErrBtn">+ Agregar error</button></div>
+        <p class="hint" style="margin:-2px 0 10px;">Respuestas de error propias de esta carpeta/subproyecto (además de las del proyecto).</p>
+        <div id="folderErrorsList"></div>
+      </div>
     `;
     mainEl.appendChild(wrap);
 
@@ -615,6 +799,14 @@ textarea.resp-body{ min-height:90px; }
         list.appendChild(row);
       });
     }
+
+    if(!node.errors) node.errors = [];
+    const errListEl = wrap.querySelector("#folderErrorsList");
+    renderErrorCards(errListEl, node.errors, ()=>{ save(); renderTree(); });
+    wrap.querySelector("#addFolderErrBtn").addEventListener("click", ()=>{
+      node.errors.push({ id:uid(), status:"401", label:"", body:"" });
+      save(); renderTree(); renderErrorCards(errListEl, node.errors, ()=>{ save(); renderTree(); });
+    });
 
     wrap.querySelector("#renameFolderBtn").addEventListener("click", ()=>{
       const name = prompt("Renombrar carpeta:", node.name);
@@ -653,6 +845,12 @@ textarea.resp-body{ min-height:90px; }
             <option value="">— Raíz —</option>
             ${folders.map(f=>`<option value="${f.id}" ${f.id===ep.parentId?"selected":""}>${escapeHtml(f.name)}</option>`).join("")}
           </select>
+          ${state.projects.length>1 ? `
+          <label class="section-label" style="font-weight:400;">Proyecto:</label>
+          <select class="move-select" id="moveProjectSelect">
+            <option value="">${escapeHtml(proj.name)} (actual)</option>
+            ${state.projects.filter(p=>p.id!==proj.id).map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}
+          </select>` : ``}
         </div>
         <div>
           <button class="small-btn" id="dupBtn">Duplicar</button>
@@ -708,6 +906,22 @@ textarea.resp-body{ min-height:90px; }
     `;
     mainEl.appendChild(wrap);
 
+    const moveProjectSelect = wrap.querySelector("#moveProjectSelect");
+    if(moveProjectSelect){
+      moveProjectSelect.addEventListener("change", e=>{
+        const targetId = e.target.value;
+        if(!targetId) return;
+        const target = state.projects.find(p=>p.id===targetId);
+        if(!target) return;
+        proj.nodes = proj.nodes.filter(n=>n.id!==ep.id);
+        ep.parentId = null;
+        target.nodes.push(ep);
+        activeNodeId = null;
+        save();
+        toast('Endpoint movido a "' + target.name + '"');
+        renderAll();
+      });
+    }
     wrap.querySelector("#moveSelect").addEventListener("change", e=>{
       ep.parentId = e.target.value || null;
       if(ep.parentId) expanded.add(ep.parentId);
@@ -848,11 +1062,11 @@ textarea.resp-body{ min-height:90px; }
       try{
         const parsed = JSON.parse(reader.result);
         let proj;
-        if(parsed.nodes){ proj = parsed; if(!proj.id) proj.id = uid(); }
+        if(parsed.nodes){ proj = parsed; if(!proj.id) proj.id = uid(); if(!proj.errors) proj.errors=[]; }
         else if(parsed.endpoints){
-          proj = { id: uid(), name: "Importado", nodes: parsed.endpoints.map(e=>({...e, parentId:null, type:"endpoint"})) };
+          proj = { id: uid(), name: "Importado", nodes: parsed.endpoints.map(e=>({...e, parentId:null, type:"endpoint"})), errors: [] };
         } else throw new Error("Formato no reconocido");
-        proj.nodes.forEach(n=>{ if(!n.id) n.id=uid(); if(n.type==="endpoint" && !n.responses) n.responses=[]; });
+        proj.nodes.forEach(n=>{ if(!n.id) n.id=uid(); if(n.type==="endpoint" && !n.responses) n.responses=[]; if(n.type==="folder" && !n.errors) n.errors=[]; });
         state.projects.push(proj); activeProjectId = proj.id; activeNodeId = null;
         save(); renderAll(); toast("Proyecto importado");
       }catch(err){ alert("No se pudo importar el archivo: " + err.message); }
@@ -862,13 +1076,24 @@ textarea.resp-body{ min-height:90px; }
 
   function slug(s){ return (s||"proyecto").toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"") || "proyecto"; }
 
+  function errorsToMarkdown(errors, heading){
+    if(!errors || errors.length===0) return "";
+    let out = heading + " ⚠️ Errores generales\n\n";
+    errors.forEach(r=>{
+      out += "**" + (r.status||"") + (r.label? " — "+r.label:"") + ":**\n\n```json\n" + (r.body||"").trim() + "\n```\n\n";
+    });
+    return out;
+  }
+
   function toMarkdown(proj){
     let out = "# " + proj.name + "\n\n";
+    out += errorsToMarkdown(proj.errors, "##");
     function walk(parentId, depth){
       children(proj,parentId).forEach(n=>{
         const heading = "#".repeat(Math.min(depth+2,6));
         if(n.type==="folder"){
           out += heading + " 📁 " + n.name + "\n\n";
+          out += errorsToMarkdown(n.errors, heading+"#");
           walk(n.id, depth+1);
         } else {
           out += heading + " " + (n.title? n.title+" — ":"") + "`" + n.method + " " + n.path + "`\n\n";
@@ -918,8 +1143,8 @@ textarea.resp-body{ min-height:90px; }
     if(root) root.parentId = null;
     return cloned;
   }
-  function shareAndDownload(name, nodes){
-    const html = buildShareHtml({ name, nodes });
+  function shareAndDownload(name, nodes, errors){
+    const html = buildShareHtml({ name, nodes, errors: errors||[] });
     downloadFile(slug(name)+"-preview.html", html, "text/html");
     toast("Vista previa generada — envíasela al desarrollador");
   }
@@ -943,12 +1168,12 @@ textarea.resp-body{ min-height:90px; }
         shareMenu.hidden = true;
         const scope = btn.dataset.scope;
         if(scope==="project"){
-          shareAndDownload(proj.name, proj.nodes.map(n=>JSON.parse(JSON.stringify(n))));
+          shareAndDownload(proj.name, proj.nodes.map(n=>JSON.parse(JSON.stringify(n))), JSON.parse(JSON.stringify(proj.errors||[])));
         } else if(scope==="folder"){
-          shareAndDownload(proj.name + " — " + folderNode.name, subtreeNodes(proj, folderNode.id));
+          shareAndDownload(proj.name + " — " + folderNode.name, subtreeNodes(proj, folderNode.id), []);
         } else if(scope==="endpoint"){
           const clone = JSON.parse(JSON.stringify(node)); clone.parentId = null;
-          shareAndDownload((node.title||node.path||"endpoint"), [clone]);
+          shareAndDownload((node.title||node.path||"endpoint"), [clone], []);
         }
       });
     });
@@ -992,11 +1217,32 @@ const proj = ${data};
 function children(pid){ return proj.nodes.filter(n=>n.parentId===pid); }
 function esc(s){ return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 const treeEl = document.getElementById("tree"), mainEl = document.getElementById("main");
+function setActive(rowDiv){
+  document.querySelectorAll(".node-row").forEach(el=>el.classList.remove("active"));
+  rowDiv.classList.add("active");
+}
+function showErrors(title, errors){
+  let html = '<h2>⚠️ '+esc(title)+'</h2>';
+  if(!errors || errors.length===0){ html += '<p style="color:var(--ink-dim);">Sin errores generales documentados.</p>'; }
+  else{
+    html += '<div class="section">';
+    errors.forEach(r=>{ html += '<div class="response"><div class="resp-head">'+esc(r.status||"")+(r.label?' — '+esc(r.label):"")+'</div><pre class="mono">'+esc((r.body||"").trim())+'</pre></div>'; });
+    html += '</div>';
+  }
+  mainEl.innerHTML = html;
+}
+if(proj.errors && proj.errors.length){
+  const pinned = document.createElement("div");
+  pinned.innerHTML = '<div class="node-row" style="font-weight:600;">⚠️ Errores generales</div>';
+  pinned.querySelector(".node-row").addEventListener("click", ()=>{ setActive(pinned.querySelector(".node-row")); showErrors("Errores generales del proyecto", proj.errors); });
+  treeEl.appendChild(pinned);
+}
 function renderLevel(pid, depth){
   children(pid).forEach(n=>{
     const row = document.createElement("div");
     if(n.type==="folder"){
       row.innerHTML = '<div class="node-row" style="padding-left:'+(depth*14)+'px">📁 <span class="folder-name">'+esc(n.name)+'</span></div>';
+      row.querySelector(".node-row").addEventListener("click", ()=>{ setActive(row.querySelector(".node-row")); showErrors("Errores generales — "+n.name, n.errors); });
       treeEl.appendChild(row); renderLevel(n.id, depth+1);
     } else {
       row.innerHTML = '<div class="node-row" style="padding-left:'+(depth*14+14)+'px"><span class="badge badge-'+n.method+'">'+n.method+'</span> <span class="item-path mono">'+esc(n.path)+'</span></div>';
