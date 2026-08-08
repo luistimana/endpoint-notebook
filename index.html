@@ -56,9 +56,10 @@ body{
   outline:2px solid var(--accent); outline-offset:1px;
 }
 
-.tree-toolbar{ display:flex; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); }
-.search{ flex:1; padding:7px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg-elev); color:var(--ink); font-size:12.8px; }
-.text-btn{ padding:7px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg-elev); color:var(--ink); font-size:12px; cursor:pointer; white-space:nowrap; }
+.tree-toolbar{ display:flex; flex-direction:column; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); }
+.tree-toolbar-row{ display:flex; gap:8px; min-width:0; }
+.search{ flex:1; min-width:0; padding:7px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg-elev); color:var(--ink); font-size:12.8px; }
+.text-btn{ flex:1; min-width:0; padding:7px 8px; border-radius:8px; border:1px solid var(--line); background:var(--bg-elev); color:var(--ink); font-size:12px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .text-btn:hover{ border-color:var(--accent); color:var(--accent); }
 
 .tree{ flex:1; overflow-y:auto; padding:8px; }
@@ -158,9 +159,13 @@ textarea.resp-body{ min-height:90px; }
       <button class="icon-btn" id="delProjectBtn" title="Eliminar proyecto">🗑</button>
     </div>
     <div class="tree-toolbar">
-      <input class="search" id="search" type="text" placeholder="Buscar…" />
-      <button class="text-btn" id="addFolderBtn">+ Carpeta</button>
-      <button class="text-btn" id="addEndpointBtn">+ Endpoint</button>
+      <div class="tree-toolbar-row">
+        <input class="search" id="search" type="text" placeholder="Buscar…" />
+      </div>
+      <div class="tree-toolbar-row">
+        <button class="text-btn" id="addFolderBtn">+ Carpeta</button>
+        <button class="text-btn" id="addEndpointBtn">+ Endpoint</button>
+      </div>
     </div>
     <div class="tree" id="tree"></div>
     <div class="sidebar-footer">
