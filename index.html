@@ -34,9 +34,9 @@ body{
   font-size:14.5px; line-height:1.5; height:100vh; overflow:hidden;
 }
 .mono{ font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-.app{ display:grid; grid-template-columns: 310px 1fr; height:100vh; }
+.app{ display:grid; grid-template-columns: 310px 1fr; grid-template-rows: 100vh; height:100vh; }
 
-.sidebar{ border-right:1px solid var(--line); display:flex; flex-direction:column; min-width:0; background:var(--bg); }
+.sidebar{ border-right:1px solid var(--line); display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--bg); }
 .brand{ padding:18px 18px 12px; border-bottom:1px solid var(--line); }
 .brand h1{ font-size:16px; margin:0 0 2px; font-weight:700; }
 .brand p{ margin:0; font-size:12px; color:var(--ink-dim); }
