@@ -1424,6 +1424,7 @@ textarea.resp-body{ min-height:90px; }
 .main{padding:28px 36px;}
 .main h2{margin:0 0 14px;} .section-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);font-weight:600;margin-bottom:6px;}
 pre{background:var(--mono-bg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto;font-size:12.5px;}
+.json-key{color:var(--put);} .json-string{color:var(--get);} .json-value{color:var(--patch);}
 .section{margin-bottom:22px;} .empty{color:var(--ink-dim);padding:60px;text-align:center;}
 .notes-render{line-height:1.6;} .notes-render ul,.notes-render ol{margin:4px 0;padding-left:22px;}
 .response{border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--bg-elev);}
@@ -1436,6 +1437,20 @@ pre{background:var(--mono-bg);border:1px solid var(--line);border-radius:8px;pad
 const proj = ${data};
 function children(pid){ return proj.nodes.filter(n=>n.parentId===pid); }
 function esc(s){ return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function hl(text){
+  const pattern = /("(?:\\\\u[0-9a-fA-F]{4}|\\\\[^u]|[^\\\\"])*"(\\s*:)?|\\btrue\\b|\\bfalse\\b|\\bnull\\b|-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)/g;
+  let out = "", lastIndex = 0, m;
+  while((m = pattern.exec(text))){
+    out += esc(text.slice(lastIndex, m.index));
+    const match = m[0];
+    let cls = "json-value";
+    if(match.charAt(0) === '"') cls = /:\\s*$/.test(match) ? "json-key" : "json-string";
+    out += '<span class="'+cls+'">'+esc(match)+'</span>';
+    lastIndex = m.index + match.length;
+  }
+  out += esc(text.slice(lastIndex));
+  return out;
+}
 const treeEl = document.getElementById("tree"), mainEl = document.getElementById("main");
 function setActive(rowDiv){
   document.querySelectorAll(".node-row").forEach(el=>el.classList.remove("active"));
@@ -1446,7 +1461,7 @@ function showErrors(title, errors){
   if(!errors || errors.length===0){ html += '<p style="color:var(--ink-dim);">Sin errores generales documentados.</p>'; }
   else{
     html += '<div class="section">';
-    errors.forEach(r=>{ html += '<div class="response"><div class="resp-head">'+esc(r.status||"")+(r.label?' — '+esc(r.label):"")+'</div><pre class="mono">'+esc((r.body||"").trim())+'</pre></div>'; });
+    errors.forEach(r=>{ html += '<div class="response"><div class="resp-head">'+esc(r.status||"")+(r.label?' — '+esc(r.label):"")+'</div><pre class="mono">'+hl((r.body||"").trim())+'</pre></div>'; });
     html += '</div>';
   }
   mainEl.innerHTML = html;
@@ -1477,11 +1492,11 @@ function renderLevel(pid, depth){
 }
 function showEndpoint(n){
   let html = '<h2>'+(n.title?esc(n.title)+' — ':'')+'<span class="badge badge-'+n.method+'">'+n.method+'</span> <span class="mono">'+esc(n.path)+'</span></h2>';
-  if(n.body && n.body.trim()){ html += '<div class="section"><div class="section-label">Body de la solicitud</div><pre class="mono">'+esc(n.body.trim())+'</pre></div>'; }
+  if(n.body && n.body.trim()){ html += '<div class="section"><div class="section-label">Body de la solicitud</div><pre class="mono">'+hl(n.body.trim())+'</pre></div>'; }
   if(n.responses && n.responses.length){
     html += '<div class="section"><div class="section-label">Ejemplos de respuesta</div>';
     n.responses.forEach(r=>{
-      html += '<div class="response"><div class="resp-head">'+esc(r.status||"")+(r.label?' — '+esc(r.label):"")+(r.general?' <span style="opacity:.7;">(error general)</span>':'')+'</div><pre class="mono">'+esc((r.body||"").trim())+'</pre></div>';
+      html += '<div class="response"><div class="resp-head">'+esc(r.status||"")+(r.label?' — '+esc(r.label):"")+(r.general?' <span style="opacity:.7;">(error general)</span>':'')+'</div><pre class="mono">'+hl((r.body||"").trim())+'</pre></div>';
     });
     html += '</div>';
   }
